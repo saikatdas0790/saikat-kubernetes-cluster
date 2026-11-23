@@ -23,7 +23,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: stun
-          image: docker.io/coturn/coturn:4.19.1-r0
+          image: docker.io/coturn/coturn:4.19.2-r0
           args:
             - -c
             - /etc/coturn/turnserver.conf
