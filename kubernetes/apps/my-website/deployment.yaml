@@ -22,7 +22,7 @@ spec:
         - name: harbor-pull-secret
       containers:
         - name: my-website
-          image: harbor.saikat.dev/my-website/my-website:20261119220630-6ec4d74c # {"$imagepolicy": "flux-system:my-website"}
+          image: harbor.saikat.dev/my-website/my-website:20261123104549-4fd1ec36 # {"$imagepolicy": "flux-system:my-website"}
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
