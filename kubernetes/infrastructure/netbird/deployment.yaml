@@ -78,7 +78,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: dashboard
-          image: docker.io/netbirdio/dashboard:v2.97.0
+          image: docker.io/netbirdio/dashboard:v2.98.0
           env:
             - name: NETBIRD_MGMT_API_ENDPOINT
               value: https://netbird.saikat.dev
