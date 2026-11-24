@@ -39,7 +39,7 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: hubble-serving-certificate-rotation-1
+  name: hubble-serving-certificate-rotation-2
   namespace: kube-system
 spec:
   activeDeadlineSeconds: 300

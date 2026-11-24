@@ -17,10 +17,10 @@ spec:
   # * Previous cross-node rolling upgrades exceeded five minutes.
   timeout: 15m
   upgrade:
-    remediation:
-      retries: 3
-  rollback:
-    force: true
+    strategy:
+      # ! Rollback restored the old Hubble certificate and restarted the crash loop.
+      name: RetryOnFailure
+      retryInterval: 2m
   values:
     # ! The serial rollout policy overrides the chart's two-unavailable-agent default.
     updateStrategy:
