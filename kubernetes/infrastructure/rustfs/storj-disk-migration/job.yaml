@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: storj-disk-to-rustfs-1
+  namespace: rustfs
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      containers:
+        - name: sync-encrypted-objects
+          image: rclone/rclone:1.76.0
+          command: [/bin/sh, -ec]
+          args:
+            - |
+              case "$RCLONE_CONFIG_STORJ_ACCESS_GRANT" in
+                ''|REPLACE_WITH_READ_ONLY_STORJ_ACCESS_GRANT)
+                  printf 'Populate the read-only Storj Access Grant before starting the migration\n' >&2
+                  exit 1
+                  ;;
+              esac
+              source_entries=$(rclone lsf storj:disk --max-depth 1 --log-level INFO)
+              if [ -z "$source_entries" ]; then
+                printf 'Storj disk is not visible or is empty; check the grant scope and encryption context\n' >&2
+                exit 1
+              fi
+              rclone size storj:disk --log-level INFO
+              rclone sync storj:disk rustfs:saikat-personal-disk --metadata --log-level INFO
+              rclone check storj:disk rustfs:saikat-personal-disk --size-only --log-level INFO
+          env:
+            - name: RCLONE_CONFIG
+              value: /dev/null
+            - name: RCLONE_CONFIG_STORJ_TYPE
+              value: storj
+            - name: RCLONE_CONFIG_STORJ_ACCESS_GRANT
+              valueFrom:
+                secretKeyRef:
+                  name: storj-disk-migration-read-only
+                  key: access-grant
+            - name: RCLONE_CONFIG_RUSTFS_TYPE
+              value: s3
+            - name: RCLONE_CONFIG_RUSTFS_PROVIDER
+              value: Other
+            - name: RCLONE_CONFIG_RUSTFS_ENDPOINT
+              value: http://rustfs-svc.rustfs.svc.cluster.local:9000
+            - name: RCLONE_CONFIG_RUSTFS_REGION
+              value: us-east-1
+            - name: RCLONE_CONFIG_RUSTFS_SERVER_SIDE_ENCRYPTION
+              value: AES256
+            - name: RCLONE_CONFIG_RUSTFS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-credentials
+                  key: RUSTFS_ACCESS_KEY
+            - name: RCLONE_CONFIG_RUSTFS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-credentials
+                  key: RUSTFS_SECRET_KEY

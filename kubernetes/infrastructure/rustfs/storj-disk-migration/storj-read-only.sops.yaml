@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: storj-disk-migration-read-only
+    namespace: rustfs
+type: Opaque
+stringData:
+    access-grant: ENC[AES256_GCM,data:8v4RJkml1BAM2rLHm9jXnj85QZp9K927Se4v/zn61IEwAWd/Loku7KJDH8gJvkT9Ef1ohPmoWGlz+WBiuFR9LKKdxrN/AHWo+qv1W88zkO7QSRF34pIF595yS1yNiDki6TDV76+B30lNV/p3g1BLsEb+ecA0xhfEnfxShwLb+4PUYhPN+zXaxt2xPpthwYg7REVFpLJg4DKytguIPnAU5TKjltqrUZ218VoulsQZBEq/N8dH9rkI3E8FitUFAJmygTU3uA4NN2h0hB+jeAswXuhgk/HO+/LA0epAeRIdVwXaQdsAz7bbYyT8aZJYBUodFLqdCvZOU7eTJK40hBBfwyfYD1MTrsXW8VMUHJgB4N00sVOdU2Fyg8Sir9Gj3yfMYV9A1Q==,iv:rL4iuqNM+TAbnulEb+m7LvhMcvyJmVMsIdjP65JnJZc=,tag:TtoVKcjfKKBYj/CAEOdvrA==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB4ekgvdzQ0SEVLK2JUcEZs
+            cXpuSCtsRlNuNTFIaXdrdTVYdEJ5THNjVWtjCndSdFlaZnpLNXc3WktXOEVhTXky
+            Z1RhWE9rRUR6dk5zMjlzQkZKem16RWsKLS0tIGpVOVJCQTdOVUJsWXhyZWY3SE1O
+            VCtGc0ZDMENmN1VwdUFjc2lyanlvUTQKjvF2xNiXL0SmGqglBRiaGPn2tHRjE19F
+            h0WAXtifKMhNrgIR/9zIS6fCOWf3JlKJtXP4kOWvFTa8AKqC+5shNg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1pdqae3ffmt9rxtmn2758pxjqaaxnytg6mzx3wpepuhs7de2ttfkqk3z7hl
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-11-24T17:37:47Z"
+    mac: ENC[AES256_GCM,data:3Zoo2Krs9NN3nwiBQoHfL4GA5V0Ev/MyMAyXz/V1t+Y7Xe5oEhyAp6GCbvKHs0uMHsxpD4vX4KCgnHa/GXMb++1apOHpZpvm8wS+TuyAPCYZ196WCXO3zLly2ZrCC2Z9mbDQlwqm6d50o00UVeOCOUGA06F7FpoXzEnJ3q3j0jw=,iv:zlPYGKbNdTX/71JyMY/NoB+I7Ze431mJjAckNYVgo6s=,tag:4gmDasOxEcRfXtT1Cr85DQ==,type:str]
+    version: 3.13.3

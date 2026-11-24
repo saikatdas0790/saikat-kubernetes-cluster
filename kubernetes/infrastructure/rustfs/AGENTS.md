@@ -48,3 +48,34 @@ Bucket defaults do not encrypt historical objects. Migrate each workload separat
 4. Switch each consumer declaratively, verify production writes and reads, and
    retain the original bucket for rollback. Retire plaintext copies, historical
    versions, and any old snapshots only after separate retention approval.
+
+## Storj `disk` migration
+
+The [migration Job](storj-disk-migration/job.yaml) streams ciphertext from the
+[native rclone Storj backend](https://rclone.org/storj/) to the
+[`saikat-personal-disk` bucket on RustFS](https://rclone.org/s3/), not through a
+`crypt` remote.
+The crypt password and salt stay with the client, never in the Job. The sync
+requests metadata preservation where supported and SSE-S3 on destination writes.
+The S3 backend creates the destination bucket if missing; no `mkdir` is needed.
+
+Use `mise run sops-edit -- kubernetes/infrastructure/rustfs/storj-disk-migration/storj-read-only.sops.yaml`
+locally to supply a serialized Storj Access Grant scoped to list and read `disk`.
+The grant must use the same Storj encryption context as the existing client so
+it sees the same keys. Compare the Job's source totals with the expected inventory
+before cutover; endpoint access by itself does not prove the grant sees all keys.
+The dedicated Flux Kustomization depends on RustFS but does not wait for the
+long-running Job. Verify the Job and follow rclone's periodic transfer stats with
+`mise exec kubectl -- kubectl logs -n rustfs -f job/storj-disk-to-rustfs-1`.
+
+Storj is authoritative until cutover. Every run deletes destination-only objects
+from `saikat-personal-disk`; keep other writers off that bucket until cutover.
+Use `rclone sync --dry-run` to preview planned changes when needed. The Job checks
+keys and sizes in both directions after syncing; this is not full content
+verification. Before cutover, pause Storj writes and reconcile a new, uniquely
+named Job for the final pass. Do not rerun it after switching writers to RustFS.
+Download representative files through the new crypt remote and compare contents;
+full `rclone check --download` also works but reads the entire source again and
+incurs further Storj egress. Keep the original bucket and crypt configuration for
+rollback, verify an independent backup, and revoke the temporary Storj credential
+when the migration is finished.

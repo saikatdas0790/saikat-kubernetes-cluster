@@ -29,6 +29,7 @@ resources:
   - infrastructure-netbird-exposure.yaml
   - infrastructure-oauth2-proxy.yaml
   - infrastructure-reloader.yaml
+  - infrastructure-rustfs-storj-disk-migration.yaml
   - infrastructure-rustfs.yaml
   - infrastructure-shipwright.yaml
   - infrastructure-tekton-pipelines.yaml
