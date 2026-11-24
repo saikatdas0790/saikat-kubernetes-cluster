@@ -53,6 +53,7 @@ backend = "asdf:mise-plugins/mise-gcloud"
 [[tools.aws-cli]]
 version = "2.40.4"
 backend = "aqua:aws/aws-cli"
+unsupported_platforms = ["windows-x64"]
 
 [tools.aws-cli."platforms.linux-arm64"]
 checksum = "sha256:88961950fb3ef0b7190b40a1bccad0308b69186dbc575cb7c999b8c18959c635"
@@ -338,6 +339,7 @@ url = "https://nodejs.org/dist/v26.13.1/node-v26.13.1-win-x64.zip"
 [[tools.pitchfork]]
 version = "2.34.0"
 backend = "aqua:jdx/pitchfork"
+unsupported_platforms = ["macos-x64"]
 
 [tools.pitchfork."platforms.linux-arm64"]
 checksum = "sha256:1fd3a99061b41744a3c77725c86ad16a1ce6b325c336723352eddc38f5c6f98e"
