@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hubble-serving-certificate-rotation
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hubble-serving-certificate-rotation
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [cilium-ca]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [hubble-server-certs]
+    verbs: [update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hubble-serving-certificate-rotation
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hubble-serving-certificate-rotation
+subjects:
+  - kind: ServiceAccount
+    name: hubble-serving-certificate-rotation
+    namespace: kube-system
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hubble-serving-certificate-rotation-1
+  namespace: kube-system
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: hubble-serving-certificate-rotation
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: certgen
+          image: quay.io/cilium/certgen:v0.4.14@sha256:2f89929b7474b739d5225d69f44bd70d9e28067ff6dc7fdbe0f6407828fb8395
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          command: [/usr/bin/cilium-certgen]
+          args:
+            - --ca-generate=false
+            - --ca-reuse-secret
+            - --ca-secret-namespace=kube-system
+            - --ca-secret-name=cilium-ca
+            - --ca-enforce-validity-throughout-leaves-duration=true
+          env:
+            - name: CILIUM_CERTGEN_CONFIG
+              value: |
+                certs:
+                  - name: hubble-server-certs
+                    namespace: kube-system
+                    commonName: "*.saikat-kubernetes-cluster.hubble-grpc.cilium.io"
+                    hosts:
+                      - "*.saikat-kubernetes-cluster.hubble-grpc.cilium.io"
+                      - "*.yral-k8s-cluster.hubble-grpc.cilium.io"
+                    usage: [signing, key encipherment, server auth, client auth]
+                    validity: 8760h

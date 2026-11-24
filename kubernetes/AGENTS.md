@@ -60,6 +60,10 @@ Cilium cluster names must satisfy the [official Helm reference](https://docs.cil
 at most 32 lowercase alphanumeric/dash characters, starting and ending with an
 alphanumeric character. Preserve `cluster.id` during a name-only migration and
 verify the serial agent rollout and Hubble relay before retiring old endpoints.
+The Helm certificate method reuses the existing Hubble leaf after a rename.
+Use [Cilium certgen](https://docs.cilium.io/en/stable/observability/hubble/configuration/tls/)
+to reissue the serving leaf with both names and the existing CA. Verify its SANs
+and every Relay replica before removing the one-time rotation resources.
 
 External traffic reaches the shared Cilium Gateway through inventory-generated DNS and the declared exposure model. Node addresses, regional placement, and component versions are maintained in inventory and manifests, not copied into documentation tables.
 

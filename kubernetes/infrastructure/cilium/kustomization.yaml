@@ -10,3 +10,4 @@ kind: Kustomization
 resources:
   - helmrepository.yaml
   - helmrelease.yaml
+  - hubble-serving-certificate-rotation.yaml
