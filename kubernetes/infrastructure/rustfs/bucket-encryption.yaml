@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: rustfs-bucket-sse-s3-1
+  name: rustfs-bucket-sse-s3-2
   namespace: rustfs
 spec:
   backoffLimit: 6
