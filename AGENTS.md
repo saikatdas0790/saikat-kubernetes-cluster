@@ -111,6 +111,12 @@ keep its directories aligned with maintained projects. Renovate owns mise tools,
 Ansible dependencies, and the generic infrastructure release/image discovery below.
 Assign each dependency to one bot; disable Renovate managers covered by Dependabot.
 
+Dependabot updates, including majors, are squash-merged only after the Linux/macOS
+infrastructure checks and website type-check, tests, and build pass for the tested
+head against `main`. Enforce this in the merge workflow, not branch-wide rules:
+Flux writes website image tags directly to `main`. The privileged `workflow_run`
+job must not check out or execute pull request code or consume its artifacts.
+
 **New image declarations must be automatically discoverable without per-image changes to `renovate.json`.** Prefer built-in managers and generic structured-data discovery. Use complete `image: repository:tag` references, or declare `repository` alongside `tag`/`version` in Helm image objects; never leave a tag-only override whose repository exists only in chart defaults. Do not add image-specific extractors. Validate additions with `mise run renovate-configuration-checks`. Flux retains ownership of internally built application image updates.
 
 ### Latest Stable Preference

@@ -1,0 +1,27 @@
+name: Website Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Website type-check, tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up website tooling
+        uses: jdx/mise-action@v5
+        with:
+          install_args: node python
+      - name: Validate website
+        run: mise run --skip-tools my-website-checks
