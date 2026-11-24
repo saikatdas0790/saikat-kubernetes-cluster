@@ -1,0 +1,66 @@
+name: Dependabot Auto-Merge
+
+on:
+  workflow_run:
+    workflows: [Infrastructure Releases, Website Checks]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  merge:
+    name: Merge validated Dependabot pull request
+    if: >-
+      github.repository == 'saikatdas0790/saikat-kubernetes-cluster' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: dependabot-auto-merge-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Verify both workflows passed and squash merge the tested head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TESTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TESTED_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          pull_request_number=$(gh api --method GET "repos/$GH_REPO/pulls" \
+            -f state=open -f base=main -f "head=${GH_REPO%%/*}:$TESTED_BRANCH" \
+            | jq -r --arg repository "$GH_REPO" --arg head "$TESTED_HEAD_SHA" '
+                .[] | select(.user.login == "dependabot[bot]" and .draft == false
+                  and .head.repo.full_name == $repository and .head.sha == $head) | .number')
+          if [[ -z "$pull_request_number" ]]; then
+            echo 'No eligible open Dependabot pull request matches the tested head.'
+            exit 0
+          fi
+
+          current_base_sha=$(gh api "repos/$GH_REPO/branches/main" --jq .commit.sha)
+          for workflow_file in infrastructure-releases.yml website-checks.yml; do
+            conclusion=$(gh api --method GET "repos/$GH_REPO/actions/workflows/$workflow_file/runs" \
+              -f event=pull_request -f "head_sha=$TESTED_HEAD_SHA" -F per_page=100 \
+              | jq -r --argjson number "$pull_request_number" --arg base "$current_base_sha" '
+                  [.workflow_runs[] | select(any(.pull_requests[]?;
+                    .number == $number and .base.ref == "main" and .base.sha == $base))]
+                  | max_by(.id) | .conclusion // "pending"')
+            echo "$workflow_file on current main: $conclusion"
+            if [[ "$conclusion" != success ]]; then
+              exit 0
+            fi
+          done
+
+          if [[ "$(gh api "repos/$GH_REPO/branches/main" --jq .commit.sha)" != "$current_base_sha" ]]; then
+            echo 'Main advanced during validation; waiting for checks against the new base.'
+            exit 0
+          fi
+          gh api --method PUT "repos/$GH_REPO/pulls/$pull_request_number/merge" \
+            -f "sha=$TESTED_HEAD_SHA" -f merge_method=squash
