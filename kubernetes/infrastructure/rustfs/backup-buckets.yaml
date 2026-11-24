@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: rustfs-cluster-backup-buckets-2
+  name: rustfs-cluster-backup-buckets-3
   namespace: rustfs
 spec:
   backoffLimit: 6
