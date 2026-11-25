@@ -31,16 +31,9 @@ spec:
     defaultRules:
       rules:
         kubeProxy: false
-      # Per-rule disable (NOT the rules.etcd group kill-switch): only
-      # etcdMemberCommunicationSlow is replaced — the chart's customRules
-      # only override for/severity, not the 150ms expression, and this
-      # cluster's two-DC etcd makes 150ms fire forever on the ~200ms
-      # inter-DC baseline. Redeclared at 400ms in
-      # additionalPrometheusRulesMap.etcd-cross-dc-tuning below; the other
-      # etcd alerts (MembersDown, NoLeader, FailedProposals, …) stay on
-      # their defaults.
       disabled:
         etcdMemberCommunicationSlow: true
+        KubeContainerWaiting: true
     # etcd scraping: the loopback-only :2381 metrics port is unreachable from
     # Prometheus (nodes have public IPs only, no private LAN). Scrape the
     # existing mTLS-protected client port :2379 instead — the same surface the
@@ -111,6 +104,23 @@ spec:
     # (packet loss, route flaps, cross-DC congestion typically push RTT
     # to 500ms+ or timeouts) while keeping the baseline quiet.
     additionalPrometheusRulesMap:
+      container-waiting:
+        groups:
+          - name: container-waiting
+            rules:
+              - alert: KubeContainerWaiting
+                # ! A failed Job attempt can retain PodInitializing after a retry succeeds.
+                expr: >-
+                  kube_pod_container_status_waiting_reason{reason!="CrashLoopBackOff", job="kube-state-metrics"} > 0
+                  unless on (cluster, namespace, pod, uid)
+                  kube_pod_status_phase{job="kube-state-metrics", phase=~"Failed|Succeeded"} == 1
+                for: 1h
+                labels:
+                  severity: warning
+                annotations:
+                  summary: Pod container waiting longer than 1 hour
+                  description: 'pod/{{ $labels.pod }} in namespace {{ $labels.namespace }} on container {{ $labels.container }} has been in waiting state for longer than 1 hour. (reason: "{{ $labels.reason }}") on cluster {{ $labels.cluster }}.'
+                  runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubecontainerwaiting
       etcd-cross-dc-tuning:
         groups:
           - name: etcd-cross-dc
