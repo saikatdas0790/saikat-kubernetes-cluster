@@ -54,7 +54,7 @@ spec:
               mountPath: /var/lib/netbird
       containers:
         - name: peer
-          image: docker.io/netbirdio/netbird:0.83.1-rootless
+          image: docker.io/netbirdio/netbird:0.83.2-rootless
           env:
             - name: NB_MANAGEMENT_URL
               value: https://netbird.saikat.dev
