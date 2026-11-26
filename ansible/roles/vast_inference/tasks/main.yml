@@ -88,6 +88,45 @@
   when: not ansible_check_mode
   no_log: true
 
+- name: Verify automatic tool calls for profiles that enable them
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ vast_inference_port }}/v1/chat/completions"
+    method: POST
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ vast_inference_api_key }}"
+    body_format: json
+    timeout: 90
+    body:
+      model: "{{ vast_inference_model }}"
+      messages:
+        - role: user
+          content: Call the test_ready tool with no arguments. Do not reply in prose.
+      tools:
+        - type: function
+          function:
+            name: test_ready
+            description: Report readiness for this test.
+            parameters:
+              type: object
+              properties: {}
+      tool_choice: auto
+      temperature: 0
+      max_tokens: 128
+      chat_template_kwargs:
+        enable_thinking: false
+  register: vast_inference_tool_call_test
+  no_log: true
+  when: not ansible_check_mode and vast_inference_profile.tool_call_parser is defined
+
+- name: Confirm the model returned a parsed function call
+  ansible.builtin.assert:
+    that:
+      - vast_inference_tool_call_test.json.choices[0].finish_reason == 'tool_calls'
+      - vast_inference_tool_call_test.json.choices[0].message.tool_calls[0].function.name == 'test_ready'
+    fail_msg: The model did not return the expected test_ready function call.
+  when: not ansible_check_mode and vast_inference_profile.tool_call_parser is defined
+
 - name: Configure the TLS proxy after authenticated inference is ready
   ansible.builtin.template:
     src: Caddyfile.j2

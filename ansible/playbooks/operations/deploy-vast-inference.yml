@@ -7,6 +7,7 @@
       Qwen/Qwen3.8-27B:
         supported_gpus: [GB10]
         reasoning_parser: qwen3
+        tool_call_parser: qwen3_coder
         transformers_requirement: transformers>=5.8.0
         # * The upstream DGX Spark recipe bounds scheduler and unified memory use.
         maximum_sequences: 8
