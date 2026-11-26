@@ -96,6 +96,20 @@ Only `yaml.compose_all` (which walks the node graph) or ansible-lint's own check
 
 ## Running things
 
+Vast GPU rentals are not Kubernetes nodes. Declare their physical machine IDs and
+model names in `inventory-vast/hosts.yml`, then run `mise run vast-inference-deploy`.
+The [official Vast CLI](https://docs.vast.ai/cli/reference/ssh-url) resolves a
+single active rental and its direct SSH endpoint. It uses the age-encrypted mise
+key on the controller only; do not duplicate that key in Ansible Vault. SSH
+automatically trusts and records the first host key per rental instance ID and
+rejects later changes. The first connection does not independently verify the
+server's identity. The CUDA base image's
+[Supervisor](https://github.com/vast-ai/base-image) manages the loopback-only
+[vLLM runtime](https://docs.vllm.ai/en/stable/getting_started/installation/gpu/).
+Deployment checks for the latest stable runtime; model loads use the publisher's
+default revision. Neither is polled by the running service. This workflow never
+rents or destroys machines.
+
 Azure firewall reconciliation uses `azure.azcollection.azure_rm_securitygroup`
 with `auth_source: cli` and an explicit subscription. Read the existing NSG first,
 preserve unlisted rules (the module's default), and verify after reconciliation.

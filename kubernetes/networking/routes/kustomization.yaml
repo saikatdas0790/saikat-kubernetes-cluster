@@ -9,3 +9,4 @@ resources:
   - harbor.yaml
   - my-website.yaml
   - my-website-build.yaml
+  - inference.yaml

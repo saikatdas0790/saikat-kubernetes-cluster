@@ -1,0 +1,128 @@
+---
+- name: Check available GPU and CUDA driver
+  ansible.builtin.command:
+    argv: [nvidia-smi, '--query-gpu=name,compute_cap', '--format=csv,noheader']
+  register: vast_inference_detected_gpu
+  changed_when: false
+  check_mode: false
+
+- name: Check Vast base image Python tooling
+  ansible.builtin.command:
+    argv: [uv, --version]
+  changed_when: false
+  check_mode: false
+
+- name: Confirm the physical GPU matches the rental declaration
+  ansible.builtin.assert:
+    that:
+      - vast_inference_detected_gpu.stdout_lines | length == 1
+      - vast_inference_gpu in vast_inference_detected_gpu.stdout
+    fail_msg: The detected GPU does not match the NVIDIA GPU declared by Vast.
+
+- name: Check available workspace capacity
+  ansible.builtin.command:
+    argv: [df, --output=size, -B1, /workspace]
+  register: vast_inference_workspace_capacity
+  changed_when: false
+  check_mode: false
+
+- name: Require disk capacity for the model and runtime
+  ansible.builtin.assert:
+    that: vast_inference_workspace_capacity.stdout_lines[-1] | trim | int >= 120000000000
+    fail_msg: Provision at least 120 GB for the Vast container workspace.
+
+- name: Create an isolated Python environment for vLLM
+  ansible.builtin.command:
+    argv: [uv, venv, "{{ vast_inference_environment }}"]
+    creates: "{{ vast_inference_environment }}/bin/python"
+
+- name: Install or upgrade vLLM with the CUDA backend selected from the host driver
+  ansible.builtin.command:
+    argv: >-
+      {{ ['uv', 'pip', 'install', '--python', vast_inference_environment ~ '/bin/python',
+          '--torch-backend=auto', '--upgrade-package', 'vllm', 'vllm']
+         + ([vast_inference_profile.transformers_requirement] if vast_inference_profile.transformers_requirement is defined else []) }}
+  register: vast_inference_runtime_installation
+  changed_when: >-
+    vast_inference_runtime_installation.stderr is search('(?m)^(Installed|Uninstalled) [0-9]+')
+  when: not ansible_check_mode
+
+- name: Declare the private vLLM service for Supervisor
+  ansible.builtin.template:
+    src: vllm.conf.j2
+    dest: /etc/supervisor/conf.d/saikat-vllm.conf
+    mode: '0600'
+  register: vast_inference_supervisor_configuration
+  no_log: true
+  diff: false
+
+- name: Register the vLLM service in Vast Supervisor
+  community.general.supervisorctl:
+    name: saikat-vllm
+    state: present
+  register: vast_inference_supervisor_registration
+  when: not ansible_check_mode
+
+- name: Ensure vLLM is running with the declared configuration
+  community.general.supervisorctl:
+    name: saikat-vllm
+    state: >-
+      {{ 'restarted' if not vast_inference_supervisor_registration.changed
+         and (vast_inference_supervisor_configuration.changed or vast_inference_runtime_installation.changed) else 'started' }}
+  when: not ansible_check_mode
+
+- name: Wait for the declared model on the private OpenAI endpoint
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ vast_inference_port }}/v1/models"
+    use_proxy: false
+    headers:
+      Authorization: "Bearer {{ vast_inference_api_key }}"
+    return_content: true
+    timeout: 5
+  register: vast_inference_readiness
+  until: >-
+    vast_inference_readiness.status == 200 and
+    vast_inference_model in (vast_inference_readiness.json.data | default([]) | map(attribute='id') | list)
+  retries: 180
+  delay: 10
+  when: not ansible_check_mode
+  no_log: true
+
+- name: Configure the TLS proxy after authenticated inference is ready
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/saikat-inference.Caddyfile
+    mode: '0644'
+    validate: 'caddy adapt --adapter caddyfile --config %s'
+  register: vast_inference_caddy_configuration
+
+- name: Declare a dedicated Supervisor service for the inference proxy
+  ansible.builtin.copy:
+    dest: /etc/supervisor/conf.d/saikat-inference-caddy.conf
+    mode: '0644'
+    content: |
+      [program:saikat-inference-caddy]
+      command=/opt/instance-tools/bin/caddy run --adapter caddyfile --config /etc/saikat-inference.Caddyfile
+      environment=XDG_DATA_HOME="/workspace/saikat-inference-caddy"
+  register: vast_inference_caddy_service
+
+- name: Register the dedicated inference proxy
+  community.general.supervisorctl:
+    name: saikat-inference-caddy
+    state: present
+  register: vast_inference_caddy_registration
+  when: not ansible_check_mode
+
+- name: Converge the inference proxy
+  community.general.supervisorctl:
+    name: saikat-inference-caddy
+    state: >-
+      {{ 'restarted' if not vast_inference_caddy_registration.changed
+         and (vast_inference_caddy_configuration.changed or vast_inference_caddy_service.changed) else 'started' }}
+  when: not ansible_check_mode
+
+- name: Remove the declared retired model from the Hugging Face cache
+  ansible.builtin.file:
+    path: "/workspace/saikat-huggingface/hub/models--{{ vast_inference_retired_model | replace('/', '--') }}"
+    state: absent
+  when: vast_inference_retired_model | length > 0

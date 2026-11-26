@@ -87,10 +87,8 @@ Never use terminal commands (`sed`, `awk`, `echo >`, `cat >`, `tee`, `tr`, `perl
 **Never use `tail`, `head`, `grep`, or any pipe that cuts off output when running commands.** Always run commands directly and let the full output stream so we can follow along together. This applies to **all** terminal commands — `cargo check`/`build`/`test`, `docker build`, `kubectl logs`, `ansible-playbook`, `mise run`, and every other long-running or multi-line command. If a command produces a lot of output, let it scroll — do not filter it. `tail`/`head` are acceptable **only** for post-hoc analysis **after** a run has fully completed (e.g. re-reading a completed build's output to extract a specific line), never to limit output during the run itself.
 
 **The same rule applies to suppressing output at the source — never quiet a tool's logging.** Don't pass `--log error`/`--quiet`/`-q`/`--no-progress` or similar to shrink output, and don't build tasks/scripts whose default is a summary instead of a per-item log. This is the same mistake as truncating a pipe, just moved upstream: a silent run is unverifiable, and the operator loses the ability to follow along and confirm each item worked. We **always** prefer log lines — verbose per-item output is the expected default, and a run with more lines is better than a run with fewer. If a tool emits a line per item (per object, per file, per request), leave it on and let it scroll. Only reduce output when the operator explicitly asks for it, and never as a default baked into a task.
-### Default-First Configuration
-Prefer component defaults. Add explicit config only when a concrete problem requires deviation. Explicitly matching the default creates maintenance burden and obscures intent.
-
-**Almost always prefer the developer-set defaults unless our specific use case requires tuning.** The developers of a tool/operator know its sensible defaults best — overriding them without a concrete, observed reason is more likely to introduce regressions than improvements. Only deviate when: (a) a specific symptom (OOMKilled, latency, throughput, errors) is observed in production, AND (b) the default is genuinely the cause (not just correlated). Document the symptom and rationale in a comment on the manifest where the override lives. This applies to JVM options, resource limits, operator env vars, Helm chart values, etc.
+### Default-First Configuration (Hard Preference)
+Use maintainer defaults. Omit settings that merely restate them. Override a default only when it fails a concrete requirement and upstream documentation prescribes the change. Record the failure or unmet requirement and the upstream rationale beside the override. Explicit security and privacy requirements, such as binding a private service to loopback, must still be enforced.
 
 ### Docs-First for Tooling (Hard Rule)
 When using a tool or library for the first time (or encountering a non-trivial configuration question), **always check the official documentation first** before trial-and-error. Find the canonical/prescribed way to do it, implement that, and record it in AGENTS.md under the relevant tooling section. Never guess at API shapes, configuration fields, or patterns — fetch the docs, read the prescribed approach, and follow it exactly. This prevents hours of wasted iteration on wrong assumptions.
@@ -98,11 +96,7 @@ When using a tool or library for the first time (or encountering a non-trivial c
 **Binary search debugging for procedural code:** When stuck after a couple of failed iterations on Dockerfiles, scripts, or any multi-step procedural code, comment out everything except the first essential step. Verify it works (locally + in-cluster). Then uncomment one line/step at a time, verifying each works before proceeding to the next. This isolates the exact failing step without rewriting from scratch.
 
 ### Component Versioning
-For **deployed cluster components**, always ask the user for an explicit version number from the project's releases page before adding/upgrading. Pin exactly in `roles/<role>/defaults/main.yml` only. Local mise tool requests follow the local version-locking preference below, not this rule.
-
-- Never "latest".
-- Downgrade only if latest incompatible with current K8s (document reason).
-- Upgrade order: one CP at a time → workers → add-ons, one component at a time.
+Select the latest stable release compatible with the cluster. When a deployment mechanism requires an exact reference, record that resolved release in its owning declaration and keep it current through the dependency-update workflow. Upgrade one component at a time: one control plane at a time, then workers, then add-ons.
 
 ### Dependency Update Discovery
 
@@ -119,8 +113,8 @@ job must not check out or execute pull request code or consume its artifacts.
 
 **New image declarations must be automatically discoverable without per-image changes to `renovate.json`.** Prefer built-in managers and generic structured-data discovery. Use complete `image: repository:tag` references, or declare `repository` alongside `tag`/`version` in Helm image objects; never leave a tag-only override whose repository exists only in chart defaults. Do not add image-specific extractors. Validate additions with `mise run renovate-configuration-checks`. Flux retains ownership of internally built application image updates.
 
-### Latest Stable Preference
-When making changes to a codebase (fixing bugs, migrating APIs, adding features), strive to bump all affected dependencies to their latest stable versions. If a change breaks a dependent, upgrade the dependent too — don't pin to an older version to avoid the migration. This keeps the codebase current and reduces accumulated technical debt. Always verify compilation locally before pushing.
+### Latest Stable Versions (Hard Preference)
+Use the latest stable release of tooling, runtimes, and dependencies, and the publisher's default revision of the selected model. Leave requests unpinned where the installer supports it. An exact version in a generated lockfile or a required deployment reference records a resolution; it is not a reason to stay on an older release. Pin a request only when the operator explicitly asks or a verified compatibility failure requires an upstream-documented workaround. If a change breaks a dependent, upgrade the dependent too. Verify affected software before pushing.
 
 **Never revert backwards.** When a dependency has already been bumped (even by an automated tool like Dependabot/Renovate), never revert it to an older version to work around a break. Instead, fix the breakage by upgrading the *downstream* consumer (e.g. if `syn` 3 breaks `build.rs`, upgrade `prettyplease` to a syn-3-compatible version and fix the API change — do not revert `syn` to 2.x). Pinning to old versions accumulates technical debt and defeats the purpose of automated dependency management. Only revert if the user explicitly requests it.
 
@@ -615,13 +609,15 @@ Do not create task catalogs to assert snapshots of deployment configuration. Kee
 
 Use `my-website-build`, `my-website-run`, and `my-website-stop` for the maintained application; inspect daemon status with `mise daemons ls`. Do not duplicate these with generic `dev-*` tasks. Retain indirect tool dependencies: `uv` installs mise's PyPI tools, including Azure CLI. See [mise PyPI requirements](https://mise.jdx.dev/dev-tools/backends/pypi.html#requirements).
 
+Use `mise exec pypi:vastai -- vastai ...` for the [official Vast.ai CLI](https://docs.vast.ai/cli/hello-world), installed from PyPI through mise.
+
 **Long-running processes (dev servers, containers) are declared in `[daemons]` in the root `mise.toml` and managed by mise.** There is no `pitchfork.toml` — `mise daemons start|stop|restart|ls|status|logs|urls|tui` drives them (see the `[daemons]` section and the top-of-file note in `mise.toml`).
 
-**pitchfork is still a hard dependency** — `mise daemons` is a front-end that generates a pitchfork config and delegates process supervision and readiness checks to it. `pitchfork` stays pinned in `[tools]`, and must be resolvable in the project (`mise daemons stop` fails with "No version is set for shim: pitchfork" if it is not). Do not remove it.
+**pitchfork is still a hard dependency** — `mise daemons` is a front-end that generates a pitchfork config and delegates process supervision and readiness checks to it. Keep `pitchfork` declared in `[tools]` and resolvable in the project (`mise daemons stop` fails with "No version is set for shim: pitchfork" if it is not).
 
 **Start daemons per task, not all at once.** A task declares what it needs with `daemons = ["<name>"]` (or `daemons = true` for every project daemon); mise starts them, waits for readiness, then runs the task body, and reuses anything already running. `auto = ["start", "stop"]` and `pitchfork activate` are gone — **nothing starts merely by entering the repo.** Prefer `mise run <app>-run` (which adds the `depends = ["<app>-build"]` it needs) over calling `mise daemons start` directly. Stop with `mise run <app>-stop` or `mise daemons stop`.
 
-**Version locking (Preference):** Prefer `"latest"` requests for local mise tools such as `uv`; keep exact resolved versions, checksums, and provenance in the committed `mise.lock`. Update a tool with `mise lock --bump <tool>` without replacing its floating request with an exact version. Use an explicit local tool pin only when the operator requests one or a verified compatibility constraint requires it, not merely to select a release or prevent bot branch rewrites. Deployed cluster components retain their explicit version declarations.
+**Mise version locking:** Request `"latest"` for local tools and keep exact resolved versions, checksums, and provenance in the committed `mise.lock`. Use `mise lock --bump <tool>` to update the resolution without pinning the request.
 
 For Aqua recipes that publish SLSA provenance but omit the signer, set both
 `slsa_signer_identity` and `slsa_signer_issuer` on the consuming tool, using the

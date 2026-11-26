@@ -1,0 +1,22 @@
+{
+	admin off
+	auto_https disable_redirects
+	skip_install_trust
+}
+
+https://{{ vast_inference_hostname }}:{{ vast_inference_caddy_port }} {
+	tls internal
+	@models {
+		method GET
+		path /v1/models
+	}
+	@chat {
+		method POST
+		path /v1/chat/completions
+	}
+	route {
+		reverse_proxy @models 127.0.0.1:{{ vast_inference_port }}
+		reverse_proxy @chat 127.0.0.1:{{ vast_inference_port }}
+		respond 404
+	}
+}

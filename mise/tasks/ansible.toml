@@ -17,6 +17,11 @@ run = '''
 description = "Run an Ansible playbook (usage: mise run ansible-playbook -- ansible/playbooks/operations/<playbook>.yml [-e target_host=...])"
 run = "./.venv/bin/ansible-playbook"
 
+[vast-inference-deploy]
+description = "Converge the declared models on existing Vast.ai rentals"
+depends = ["secrets-check CLUSTER_VAST_API_KEY CLUSTER_INFERENCE_API_KEY"]
+run = "./.venv/bin/ansible-playbook -i ansible/inventory-vast/hosts.yml ansible/playbooks/operations/deploy-vast-inference.yml"
+
 [ansible-lint]
 description = "Lint Ansible playbooks, roles and manifests (ansible-lint on ansible/playbooks/operations/ + ansible/manifests/)"
 run = '''

@@ -1,0 +1,90 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vast-inference
+  namespace: kube-system
+spec:
+  ports:
+    - name: https
+      port: 443
+      targetPort: 62035
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: vast-inference-62687332
+  namespace: kube-system
+  labels:
+    kubernetes.io/service-name: vast-inference
+    endpointslice.kubernetes.io/managed-by: gitops.saikat.dev
+addressType: IPv4
+ports:
+  - name: https
+    port: 62035
+    protocol: TCP
+endpoints:
+  - addresses:
+      - 79.117.8.1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vast-inference-origin-ca
+  namespace: kube-system
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIBozCCAUmgAwIBAgIQRlHHv1C6EGeH/VZZFZr8oTAKBggqhkjOPQQDAjAwMS4w
+    LAYDVQQDEyVDYWRkeSBMb2NhbCBBdXRob3JpdHkgLSAyMDI2IEVDQyBSb290MB4X
+    DTI2MTEyNjEzMzM0NFoXDTM2MTAwNDEzMzM0NFowMDEuMCwGA1UEAxMlQ2FkZHkg
+    TG9jYWwgQXV0aG9yaXR5IC0gMjAyNiBFQ0MgUm9vdDBZMBMGByqGSM49AgEGCCqG
+    SM49AwEHA0IABOiYNqrTfdqPZFNLWcu7X6cEBdVbGMtfaN3nIwVx5mwlj32Fe8kH
+    BP7xeejhtQm6kP9z3o4ry9Vs76ElFyQaHUyjRTBDMA4GA1UdDwEB/wQEAwIBBjAS
+    BgNVHRMBAf8ECDAGAQH/AgEBMB0GA1UdDgQWBBSLngaUsY/aHUYriybtuHccnN6Y
+    MDAKBggqhkjOPQQDAgNIADBFAiEAl/vdWJzoWMO7Uj6TpU0sWaxNpFrSDC1x/CCb
+    wANe678CIGmBQuYU+uRP1Z+2NHFQJwhzEw6VZAzRVfBljzMihB9m
+    -----END CERTIFICATE-----
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: vast-inference
+  namespace: kube-system
+spec:
+  targetRefs:
+    - group: ''
+      kind: Service
+      name: vast-inference
+      sectionName: https
+  validation:
+    hostname: inference.saikat.dev
+    caCertificateRefs:
+      - group: ''
+        kind: ConfigMap
+        name: vast-inference-origin-ca
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inference
+  namespace: kube-system
+spec:
+  parentRefs:
+    - name: web-gateway
+      sectionName: https-saikat-dev
+  hostnames:
+    - inference.saikat.dev
+  rules:
+    - matches:
+        - method: GET
+          path:
+            type: Exact
+            value: /v1/models
+        - method: POST
+          path:
+            type: Exact
+            value: /v1/chat/completions
+      backendRefs:
+        - name: vast-inference
+          port: 443

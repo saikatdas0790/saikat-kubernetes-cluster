@@ -1,0 +1,122 @@
+---
+- name: Resolve existing Vast GPU rentals
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vast_model_profiles:
+      Qwen/Qwen3.8-27B:
+        supported_gpus: [GB10]
+        reasoning_parser: qwen3
+        transformers_requirement: transformers>=5.8.0
+        # * The upstream DGX Spark recipe bounds scheduler and unified memory use.
+        maximum_sequences: 8
+        gpu_memory_utilization: 0.8
+      ricursiveAI/Ripple-65B-Preview-NVFP4:
+        supported_gpus: [GB10, B200, B300]
+        reasoning_parser: ripple
+  tasks:
+    - name: Require explicit and unique placements
+      ansible.builtin.assert:
+        that:
+          - vast_inference_placements is defined
+          - vast_inference_placements | length > 0
+          - vast_inference_placements | map(attribute='machine_id') | unique | length == vast_inference_placements | length
+        fail_msg: Use the separate Vast inventory and declare one model per machine ID.
+
+    - name: Validate model placement declarations
+      ansible.builtin.assert:
+        that:
+          - item.machine_id is integer
+          - item.machine_id > 0
+          - item.model in vast_model_profiles
+          - item.retired_model is not defined or (item.retired_model in vast_model_profiles and item.retired_model != item.model)
+        fail_msg: Each Vast placement needs a positive machine ID and a supported model profile.
+      loop: "{{ vast_inference_placements }}"
+
+    - name: List existing rentals using the official Vast CLI
+      ansible.builtin.command:
+        argv: [vastai, show, instances, --raw, --retry, '2']
+      environment:
+        VAST_API_KEY: "{{ lookup('ansible.builtin.env', 'CLUSTER_VAST_API_KEY', default=undef()) }}"
+      register: vast_instance_listing
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Verify each placement matches one running rental with compatible hardware
+      ansible.builtin.assert:
+        that:
+          - matching_rentals | length == 1
+          - matching_rentals[0].actual_status == 'running'
+          - matching_rentals[0].num_gpus == 1
+          - matching_rentals[0].gpu_name in vast_model_profiles[item.model].supported_gpus
+        fail_msg: >-
+          Machine {{ item.machine_id }} must resolve to exactly one running single-GPU rental
+          with one of {{ vast_model_profiles[item.model].supported_gpus | join(', ') }} for {{ item.model }}.
+      vars:
+        matching_rentals: "{{ vast_instance_listing.stdout | from_json | selectattr('machine_id', 'equalto', item.machine_id) | list }}"
+      loop: "{{ vast_inference_placements }}"
+
+    - name: Resolve SSH endpoints for validated rentals
+      ansible.builtin.command:
+        argv:
+          - vastai
+          - ssh-url
+          - "{{ (vast_instance_listing.stdout | from_json | selectattr('machine_id', 'equalto', item.machine_id) | first).id }}"
+      environment:
+        VAST_API_KEY: "{{ lookup('ansible.builtin.env', 'CLUSTER_VAST_API_KEY', default=undef()) }}"
+      register: vast_ssh_endpoints
+      changed_when: false
+      check_mode: false
+      no_log: true
+      loop: "{{ vast_inference_placements }}"
+
+    - name: Require direct root SSH to the advertised instance IPv4 address
+      ansible.builtin.assert:
+        that:
+          - ssh_url.scheme == 'ssh'
+          - ssh_url.username == 'root'
+          - ssh_url.hostname == rental.public_ipaddr
+          - ssh_url.port is integer
+          - ssh_url.port > 0
+        fail_msg: "Machine {{ item.item.machine_id }} did not resolve to direct root SSH; check the rental's launch mode."
+      vars:
+        ssh_url: "{{ item.stdout | trim | ansible.builtin.urlsplit }}"
+        rental: "{{ vast_instance_listing.stdout | from_json | selectattr('machine_id', 'equalto', item.item.machine_id) | first }}"
+      loop: "{{ vast_ssh_endpoints.results }}"
+      loop_control:
+        label: "{{ item.item.machine_id }}"
+
+    - name: Register verified rental coordinates for the deployment play
+      ansible.builtin.add_host:
+        name: "vast-{{ item.item.machine_id }}"
+        groups: vast_inference_targets
+        ansible_host: "{{ ssh_url.hostname }}"
+        ansible_port: "{{ ssh_url.port }}"
+        ansible_user: "{{ ssh_url.username }}"
+        ansible_python_interpreter: /usr/bin/python3
+        ansible_ssh_private_key_file: "{{ playbook_dir }}/../../../.saikat-machine-access-ed25519"
+        ansible_ssh_host_key_checking: true
+        # ! Override the cluster-wide SSH arguments so first-seen keys are recorded, not discarded.
+        ansible_ssh_args: >-
+          -o StrictHostKeyChecking=accept-new -o HostKeyAlias=vast-instance-{{ rental.id }}
+          -o IdentitiesOnly=yes -o ForwardAgent=no
+        vast_inference_model: "{{ item.item.model }}"
+        vast_inference_reasoning_parser: "{{ vast_model_profiles[item.item.model].reasoning_parser }}"
+        vast_inference_profile: "{{ vast_model_profiles[item.item.model] }}"
+        vast_inference_retired_model: "{{ item.item.retired_model | default('') }}"
+        vast_inference_gpu: "{{ rental.gpu_name }}"
+      vars:
+        ssh_url: "{{ item.stdout | trim | ansible.builtin.urlsplit }}"
+        rental: "{{ vast_instance_listing.stdout | from_json | selectattr('machine_id', 'equalto', item.item.machine_id) | first }}"
+      loop: "{{ vast_ssh_endpoints.results }}"
+      loop_control:
+        label: "{{ item.item.machine_id }}"
+
+- name: Converge inference on existing Vast rentals
+  hosts: vast_inference_targets
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+  roles:
+    - vast_inference

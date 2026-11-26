@@ -1,0 +1,9 @@
+[program:saikat-vllm]
+command={{ vast_inference_environment }}/bin/vllm serve {{ vast_inference_model }} --host 127.0.0.1 --port {{ vast_inference_port }} --reasoning-parser {{ vast_inference_reasoning_parser }} --disable-prefix-caching{{ ' --max-num-seqs ' ~ vast_inference_profile.maximum_sequences if vast_inference_profile.maximum_sequences is defined else '' }}{{ ' --gpu-memory-utilization ' ~ vast_inference_profile.gpu_memory_utilization if vast_inference_profile.gpu_memory_utilization is defined else '' }}
+environment=VLLM_NO_USAGE_STATS="1",HF_HUB_DISABLE_TELEMETRY="1",HF_HOME="/workspace/saikat-huggingface",VLLM_API_KEY="{{ vast_inference_api_key }}"
+autostart=true
+autorestart=unexpected
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/var/log/saikat-vllm.log
+redirect_stderr=true

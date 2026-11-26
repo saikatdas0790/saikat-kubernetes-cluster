@@ -376,6 +376,10 @@ checksum_source = "mise-versions"
 url = "https://github.com/jdx/pitchfork/releases/download/v2.36.0/pitchfork-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/774068975"
 
+[[tools."pypi:vastai"]]
+version = "1.12.0"
+backend = "pypi:vastai"
+
 [[tools.python]]
 version = "3.15.2"
 backend = "core:python"
