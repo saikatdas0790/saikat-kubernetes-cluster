@@ -337,45 +337,45 @@ checksum = "sha256:e2edda75bfb089654705cf65a13b58933bfd5f57148e8ebda916f58a2474f
 url = "https://nodejs.org/dist/v26.13.1/node-v26.13.1-win-x64.zip"
 
 [[tools.pitchfork]]
-version = "2.34.0"
+version = "2.36.0"
 backend = "aqua:jdx/pitchfork"
 unsupported_platforms = ["macos-x64"]
 
 [tools.pitchfork."platforms.linux-arm64"]
-checksum = "sha256:1fd3a99061b41744a3c77725c86ad16a1ce6b325c336723352eddc38f5c6f98e"
+checksum = "sha256:02cabdcf64dfd91d638364d961fa92cfe1005f12038c11ef56352d63781748c5"
 checksum_source = "mise-versions"
-url = "https://github.com/jdx/pitchfork/releases/download/v2.34.0/pitchfork-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/728862155"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.36.0/pitchfork-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/774056757"
 
 [tools.pitchfork."platforms.linux-arm64-musl"]
-checksum = "sha256:1fd3a99061b41744a3c77725c86ad16a1ce6b325c336723352eddc38f5c6f98e"
+checksum = "sha256:02cabdcf64dfd91d638364d961fa92cfe1005f12038c11ef56352d63781748c5"
 checksum_source = "mise-versions"
-url = "https://github.com/jdx/pitchfork/releases/download/v2.34.0/pitchfork-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/728862155"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.36.0/pitchfork-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/774056757"
 
 [tools.pitchfork."platforms.linux-x64"]
-checksum = "sha256:2e5182e32909ff259357c6761b0e8c8c68d3b352223f72bfba6683e702031ad3"
+checksum = "sha256:55e12b9467d86d9aeda468e586d603a2107962de0305dc92c9fe84b7a3b35a17"
 checksum_source = "mise-versions"
-url = "https://github.com/jdx/pitchfork/releases/download/v2.34.0/pitchfork-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/728855772"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.36.0/pitchfork-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/774054238"
 
 [tools.pitchfork."platforms.linux-x64-musl"]
-checksum = "sha256:2e5182e32909ff259357c6761b0e8c8c68d3b352223f72bfba6683e702031ad3"
+checksum = "sha256:55e12b9467d86d9aeda468e586d603a2107962de0305dc92c9fe84b7a3b35a17"
 checksum_source = "mise-versions"
-url = "https://github.com/jdx/pitchfork/releases/download/v2.34.0/pitchfork-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/728855772"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.36.0/pitchfork-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/774054238"
 
 [tools.pitchfork."platforms.macos-arm64"]
-checksum = "sha256:27dad04ac4cf54cd3315ca6ac1948fb811a8c02a1a83ba5213a137618b535a0a"
+checksum = "sha256:f85a855e814dd5918ea955d934594b2d3703fd066c087bf6bb5add97d59daee4"
 checksum_source = "mise-versions"
-url = "https://github.com/jdx/pitchfork/releases/download/v2.34.0/pitchfork-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/728869896"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.36.0/pitchfork-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/774065297"
 
 [tools.pitchfork."platforms.windows-x64"]
-checksum = "sha256:960e81bc08adfa8b0d21897590475c07660f1eb72f44daeb55ba36f5ff778436"
+checksum = "sha256:b3524ea7de1bfc1b97964c24201207679e31ad74fc1c518c4575ee47c1e5e5e2"
 checksum_source = "mise-versions"
-url = "https://github.com/jdx/pitchfork/releases/download/v2.34.0/pitchfork-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/728870949"
+url = "https://github.com/jdx/pitchfork/releases/download/v2.36.0/pitchfork-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/pitchfork/releases/assets/774068975"
 
 [[tools.python]]
 version = "3.15.2"
