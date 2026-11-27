@@ -5,7 +5,7 @@
   environment:
     VAST_API_KEY: "{{ lookup('ansible.builtin.env', 'CLUSTER_VAST_API_KEY', default=undef()) }}"
   vars:
-    vast_template_trial: "{{ vast_template_backup_trial if vast_use_backup_trial | default(false) | bool else vast_template_primary_trial }}"
+    vast_template_trial: "{{ vast_template_primary_trial }}"
     trial_docker_options: >-
       -e VLLM_MODEL={{ vast_template_trial.model | quote }}
       -e VLLM_ARGS={{ vast_template_trial.arguments | quote }}

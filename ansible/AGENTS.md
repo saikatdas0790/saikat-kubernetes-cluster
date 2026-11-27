@@ -103,8 +103,11 @@ state before changing it, and leave matching rentals untouched. Never update
 or recycle a container on a normal deploy; treat image replacement as a
 separate, explicitly approved operation because it can erase writable data.
 
-Vast GPU rentals are not Kubernetes nodes. Declare their physical machine IDs and
-model names in `inventory-vast/hosts.yml`, then run `mise run vast-inference-deploy`.
+Vast GPU rentals are not Kubernetes nodes. The active template rental is declared
+in `inventory-vast/hosts.yml`. Use `configure-vast-template-origin.yml` with
+that inventory to reconcile its TLS proxy without restarting vLLM. The separate
+`vast-inference-deploy` task is for CUDA base rentals explicitly listed under
+`vast_inference_placements`, not for rentals running the Vast vLLM template.
 The [official Vast CLI](https://docs.vast.ai/cli/reference/ssh-url) resolves a
 single active rental and its direct SSH endpoint. It uses the age-encrypted mise
 key on the controller only; do not duplicate that key in Ansible Vault. SSH
