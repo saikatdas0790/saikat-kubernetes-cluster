@@ -96,6 +96,13 @@ Only `yaml.compose_all` (which walks the node graph) or ansible-lint's own check
 
 ## Running things
 
+For Vast inference, declare the desired placement, runtime image and model
+recipe in Ansible. Use the official Vast CLI for discovery and as a task
+implementation when there is no maintained collection module. Read provider
+state before changing it, and leave matching rentals untouched. Never update
+or recycle a container on a normal deploy; treat image replacement as a
+separate, explicitly approved operation because it can erase writable data.
+
 Vast GPU rentals are not Kubernetes nodes. Declare their physical machine IDs and
 model names in `inventory-vast/hosts.yml`, then run `mise run vast-inference-deploy`.
 The [official Vast CLI](https://docs.vast.ai/cli/reference/ssh-url) resolves a

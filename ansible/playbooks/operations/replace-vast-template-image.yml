@@ -1,0 +1,96 @@
+---
+- name: Apply an approved Vast vLLM image trial
+  hosts: localhost
+  gather_facts: false
+  environment:
+    VAST_API_KEY: "{{ lookup('ansible.builtin.env', 'CLUSTER_VAST_API_KEY', default=undef()) }}"
+  vars:
+    vast_template_trial: "{{ vast_template_backup_trial if vast_use_backup_trial | default(false) | bool else vast_template_primary_trial }}"
+    trial_docker_options: >-
+      -e VLLM_MODEL={{ vast_template_trial.model | quote }}
+      -e VLLM_ARGS={{ vast_template_trial.arguments | quote }}
+      -e VLLM_NO_USAGE_STATS=1 -e HF_HUB_DISABLE_TELEMETRY=1
+      -e PORTAL_CONFIG='localhost:8000:18000:/docs:vLLM API|localhost:8265:28265:/:Ray Dashboard'
+  tasks:
+    - name: Inspect the trial rental
+      ansible.builtin.command:
+        argv: [vastai, show, instance, "{{ vast_template_trial.instance_id }}", --raw, --retry, '2']
+      register: vast_template_rental
+      changed_when: false
+      check_mode: false
+
+    - name: Verify the approved rental identity and capacity
+      ansible.builtin.assert:
+        that:
+          - rental.id == vast_template_trial.instance_id
+          - rental.machine_id == vast_template_trial.machine_id
+          - rental.gpu_name == vast_template_trial.gpu_name
+          - rental.num_gpus == vast_template_trial.gpu_count
+          - rental.disk_space | round(2) >= vast_template_trial.disk_gb
+          - not (rental.volume_info | default([]))
+          - rental.image_uuid in [vast_template_trial.previous_image, vast_template_trial.image]
+      vars:
+        rental: "{{ vast_template_rental.stdout | from_json }}"
+
+    - name: Replace the writable container only with explicit approval
+      when:
+        - not ansible_check_mode
+        - (vast_template_rental.stdout | from_json).image_uuid != vast_template_trial.image
+      block:
+        - name: Confirm the approved instance ID
+          ansible.builtin.assert:
+            that: vast_approve_recreate_instance | default(0) | int == vast_template_trial.instance_id
+            fail_msg: Specify the approved instance ID in vast_approve_recreate_instance to replace its container.
+
+        - name: Create the private Vast template with direct SSH and no Jupyter
+          ansible.builtin.command:
+            argv:
+              - vastai
+              - create
+              - template
+              - --name
+              - "{{ vast_template_trial.template_name }}"
+              - --image
+              - "{{ vast_template_trial.image.split(':')[0] }}"
+              - --image_tag
+              - "{{ vast_template_trial.image.split(':')[1] }}"
+              - --env
+              - "{{ trial_docker_options }}"
+              - --onstart-cmd
+              - entrypoint.sh
+              - --disk_space
+              - "{{ vast_template_trial.disk_gb }}"
+              - --ssh
+              - --direct
+              - --retry
+              - '1'
+          register: vast_created_template
+          changed_when: true
+          failed_when: vast_created_template.rc != 0 or 'New Template:' not in vast_created_template.stdout
+
+        - name: Set the rental's SSH-only template
+          ansible.builtin.command:
+            argv:
+              - vastai
+              - update
+              - instance
+              - "{{ vast_template_trial.instance_id }}"
+              - --template_hash_id
+              - >-
+                {{ vast_created_template.stdout | regex_search("(?<='hash_id': ')[a-f0-9]{32}") }}
+              - --raw
+              - --retry
+              - '1'
+          register: vast_template_update
+          changed_when: true
+          failed_when: >-
+            vast_template_update.rc != 0 or not (vast_template_update.stdout | trim).startswith('{') or
+            not (vast_template_update.stdout | from_json).success
+
+        - name: Activate the approved image replacement
+          ansible.builtin.command:
+            argv: [vastai, recycle, instance, "{{ vast_template_trial.instance_id }}", --raw, --retry, '1']
+          register: vast_template_recycle
+          changed_when: true
+          failed_when: >-
+            vast_template_recycle.rc != 0 or ('Recycling instance ' ~ vast_template_trial.instance_id ~ '.') not in vast_template_recycle.stdout

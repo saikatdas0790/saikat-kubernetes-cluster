@@ -15,8 +15,27 @@ https://{{ vast_inference_hostname }}:{{ vast_inference_caddy_port }} {
 		path /v1/chat/completions
 	}
 	route {
+{% if vast_origin_bearer_key is defined %}
+		@authorized header Authorization "Bearer {{ vast_origin_bearer_key }}"
+		@unauthorized not header Authorization "Bearer {{ vast_origin_bearer_key }}"
+		handle @models {
+			respond @unauthorized 401
+			reverse_proxy @authorized 127.0.0.1:{{ vast_inference_port }} {
+				header_up -Authorization
+			}
+		}
+		handle @chat {
+			respond @unauthorized 401
+			reverse_proxy @authorized 127.0.0.1:{{ vast_inference_port }} {
+				header_up -Authorization
+			}
+		}
+{% else %}
 		reverse_proxy @models 127.0.0.1:{{ vast_inference_port }}
 		reverse_proxy @chat 127.0.0.1:{{ vast_inference_port }}
-		respond 404
+{% endif %}
+		handle {
+			respond 404
+		}
 	}
 }

@@ -1,0 +1,99 @@
+---
+- name: Resolve the Vast template origin
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Inspect the primary rental
+      ansible.builtin.command:
+        argv: [vastai, show, instance, "{{ vast_template_primary_trial.instance_id }}", --raw, --retry, '2']
+      environment:
+        VAST_API_KEY: "{{ lookup('ansible.builtin.env', 'CLUSTER_VAST_API_KEY', default=undef()) }}"
+      register: vast_origin_response
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Require the declared SSH-only rental and public origin mapping
+      ansible.builtin.assert:
+        that:
+          - rental.id == vast_template_primary_trial.instance_id
+          - rental.machine_id == vast_template_primary_trial.machine_id
+          - rental.image_uuid == vast_template_primary_trial.image
+          - rental.actual_status == 'running'
+          - rental.status_msg.endswith('/ssh')
+          - rental.ports['22/tcp'] | length > 0
+          - rental.ports[(vast_template_primary_trial.origin_port | string) ~ '/tcp'] | length > 0
+      vars:
+        rental: "{{ vast_origin_response.stdout | from_json }}"
+
+    - name: Register the Vast template origin
+      ansible.builtin.add_host:
+        name: vast-template-origin
+        ansible_host: "{{ rental.public_ipaddr }}"
+        ansible_port: "{{ rental.ports['22/tcp'][0].HostPort }}"
+        ansible_user: root
+        ansible_python_interpreter: /usr/bin/python3
+        ansible_ssh_private_key_file: "{{ playbook_dir }}/../../../.saikat-machine-access-ed25519"
+        ansible_ssh_host_key_checking: true
+        ansible_ssh_args: >-
+          -o StrictHostKeyChecking=yes -o HostKeyAlias=vast-instance-{{ rental.id }}-ripple-ssh
+          -o IdentitiesOnly=yes -o ForwardAgent=no
+      vars:
+        rental: "{{ vast_origin_response.stdout | from_json }}"
+
+- name: Configure an authenticated TLS origin without restarting vLLM
+  hosts: vast-template-origin
+  gather_facts: false
+  vars:
+    vast_inference_port: 18000
+    vast_inference_caddy_port: "{{ vast_template_primary_trial.origin_port }}"
+    vast_origin_bearer_key: "{{ lookup('ansible.builtin.env', 'CLUSTER_INFERENCE_API_KEY', default=undef()) }}"
+  tasks:
+    - name: Verify the declared model responds over loopback
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:{{ vast_inference_port }}/v1/models"
+        use_proxy: false
+      register: vast_origin_models
+      check_mode: false
+      failed_when: >-
+        vast_origin_models.status != 200 or
+        vast_template_primary_trial.model not in (vast_origin_models.json.data | map(attribute='id') | list)
+
+    - name: Require a nonempty bearer key safe for the Caddy configuration
+      ansible.builtin.assert:
+        that: vast_origin_bearer_key is match('^[a-f0-9]{64}$')
+      no_log: true
+
+    - name: Declare the private Caddy configuration
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../roles/vast_inference/templates/Caddyfile.j2"
+        dest: /etc/saikat-inference.Caddyfile
+        mode: '0600'
+        validate: '/opt/instance-tools/bin/caddy adapt --adapter caddyfile --config %s'
+      register: vast_origin_caddy_config
+      diff: false
+      no_log: true
+
+    - name: Declare the Caddy Supervisor program
+      ansible.builtin.copy:
+        dest: /etc/supervisor/conf.d/saikat-inference-caddy.conf
+        mode: '0644'
+        content: |
+          [program:saikat-inference-caddy]
+          command=/opt/instance-tools/bin/caddy run --adapter caddyfile --config /etc/saikat-inference.Caddyfile
+          environment=XDG_DATA_HOME="/workspace/saikat-inference-caddy"
+      register: vast_origin_supervisor_config
+
+    - name: Register the Caddy program
+      community.general.supervisorctl:
+        name: saikat-inference-caddy
+        state: present
+      register: vast_origin_registration
+
+    - name: Converge the Caddy program
+      community.general.supervisorctl:
+        name: saikat-inference-caddy
+        state: >-
+          {{ 'restarted' if not vast_origin_registration.changed
+             and (vast_origin_caddy_config.changed or vast_origin_supervisor_config.changed) else 'started' }}
+      when: not ansible_check_mode
