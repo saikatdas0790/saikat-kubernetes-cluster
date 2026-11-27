@@ -21,6 +21,7 @@ node = "latest"
 pitchfork = "latest"
 # * Apple's container runtime is declared in the machine-wide dotfiles on macOS.
 python = "3.15.2"
+"rclone" = "latest"
 rg = "latest"
 "core:rust" = { version = "stable", targets = [
   "wasm32-unknown-unknown",
@@ -33,7 +34,8 @@ rg = "latest"
 ] }
 sops = "latest"
 uv = "latest"
-"pypi:vastai" = "latest"
+# ! Pillow 12.2.0 has no CPython 3.15 wheels, so Vast.ai would build it from source.
+"pypi:vastai" = { version = "latest", python = "3.14" }
 
 [bootstrap.repos]
 "~/.dotfiles" = { url = "git@github.com:saikatdas0790/.dotfiles.git" }
