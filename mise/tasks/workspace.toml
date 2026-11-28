@@ -245,7 +245,8 @@ assert "-t docker.io/test/my-website:latest" in tasks["my-website-image"]["run"]
 print("Verified container startup uses the same platform as its build.")
 for task_name, task in tasks.items():
   for dependency in task.get("depends", []):
-    assert dependency in tasks, "Undefined task dependency: " + task_name + " -> " + dependency
+    dependency_task, *_ = dependency.split(maxsplit=1)
+    assert dependency_task in tasks, "Undefined task dependency: " + task_name + " -> " + dependency
     print(f"Verified task dependency: {task_name} -> {dependency}")
   daemon_names = task.get("daemons", [])
   if isinstance(daemon_names, list):

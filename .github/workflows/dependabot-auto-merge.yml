@@ -40,27 +40,33 @@ jobs:
                 .[] | select(.user.login == "dependabot[bot]" and .draft == false
                   and .head.repo.full_name == $repository and .head.sha == $head) | .number')
           if [[ -z "$pull_request_number" ]]; then
-            echo 'No eligible open Dependabot pull request matches the tested head.'
+            echo 'Not merged: no eligible open Dependabot pull request matches the tested head.' | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
           current_base_sha=$(gh api "repos/$GH_REPO/branches/main" --jq .commit.sha)
+          blocked_workflows=()
           for workflow_file in infrastructure-releases.yml website-checks.yml; do
             conclusion=$(gh api --method GET "repos/$GH_REPO/actions/workflows/$workflow_file/runs" \
-              -f event=pull_request -f "head_sha=$TESTED_HEAD_SHA" -F per_page=100 \
+              -f event=pull_request -f "head_sha=$TESTED_HEAD_SHA" -F per_page=100 --paginate --slurp \
               | jq -r --argjson number "$pull_request_number" --arg base "$current_base_sha" '
-                  [.workflow_runs[] | select(any(.pull_requests[]?;
+                  [.[].workflow_runs[] | select(any(.pull_requests[]?;
                     .number == $number and .base.ref == "main" and .base.sha == $base))]
                   | max_by(.id) | .conclusion // "pending"')
-            echo "$workflow_file on current main: $conclusion"
+            printf '%s on main at %s: %s\n' "$workflow_file" "$current_base_sha" "$conclusion" | tee -a "$GITHUB_STEP_SUMMARY"
             if [[ "$conclusion" != success ]]; then
-              exit 0
+              blocked_workflows+=("$workflow_file")
             fi
           done
+          if (( ${#blocked_workflows[@]} > 0 )); then
+            echo "Not merged: #$pull_request_number needs passing checks against current main from ${blocked_workflows[*]}." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
 
           if [[ "$(gh api "repos/$GH_REPO/branches/main" --jq .commit.sha)" != "$current_base_sha" ]]; then
-            echo 'Main advanced during validation; waiting for checks against the new base.'
+            echo "Not merged: main advanced during validation of #$pull_request_number; waiting for checks against the new base." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           gh api --method PUT "repos/$GH_REPO/pulls/$pull_request_number/merge" \
-            -f "sha=$TESTED_HEAD_SHA" -f merge_method=squash
+            -f "sha=$TESTED_HEAD_SHA" -f merge_method=squash | jq -e '.merged == true'
+          echo "Squash-merged #$pull_request_number after both workflows passed." | tee -a "$GITHUB_STEP_SUMMARY"

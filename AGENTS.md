@@ -110,6 +110,10 @@ infrastructure checks and website type-check, tests, and build pass for the test
 head against `main`. Enforce this in the merge workflow, not branch-wide rules:
 Flux writes website image tags directly to `main`. The privileged `workflow_run`
 job must not check out or execute pull request code or consume its artifacts.
+[GitHub's native auto-merge](https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions#enabling-automerge-on-a-pull-request)
+waits for branch protection requirements, not workflow-local gates. Use GitHub's
+[privileged follow-up workflow pattern](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)
+instead. After `main` advances, PRs need fresh check runs against the new base.
 
 **New image declarations must be automatically discoverable without per-image changes to `renovate.json`.** Prefer built-in managers and generic structured-data discovery. Use complete `image: repository:tag` references, or declare `repository` alongside `tag`/`version` in Helm image objects; never leave a tag-only override whose repository exists only in chart defaults. Do not add image-specific extractors. Validate additions with `mise run renovate-configuration-checks`. Flux retains ownership of internally built application image updates.
 
@@ -602,6 +606,7 @@ For multiline or Base64 input, use `--stdin` instead of `--prompt`, keeping plai
 **Repeated workflow tasks live in `mise/tasks/<owner>.toml`, not bash scripts.** Reusable setup, build, test, and run workflows are `mise` tasks (`mise tasks` to list). `scripts/setup-local-env.sh` is a thin `exec mise run setup` wrapper for compatibility only — do not add logic there. New recurring workflow steps belong in a new or updated mise task; one-off commands do not require one. Never create bespoke bash scripts for repo workflows.
 
 **Task catalogs use mise's [included TOML format](https://mise.jdx.dev/tasks/task-discovery.html#included-toml-files):** write `[<task-name>]`, not `[tasks.<task-name>]`. Preserve app-prefixed task names. Included tasks inherit the root tools, environment, variables, and project working directory; retain explicit `dir` overrides. Register new catalogs in root `task_config.includes`; top-level `include` does not accept tasks. Code inspecting task declarations must read the selected catalogs rather than assume root `[tasks]` exists.
+String entries in mise [`depends`](https://mise.jdx.dev/tasks/task-configuration.html#depends) can include arguments; validate the task name, not the full invocation.
 
 Do not create task catalogs to assert snapshots of deployment configuration. Keep executable-logic regression tests beside their owning code and run them in CI; retain reusable release-contract and dependency-discovery validation.
 
